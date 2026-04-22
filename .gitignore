@@ -37,10 +37,3 @@ __screenshots__/
 
 # Vite
 *.timestamp-*-*.mjs
-
-src/api/
-src/store/
-src/styles/
-src/utils/
-src/components/SideMenuItem.vue
-src/components/SkeletonLoading.vue
