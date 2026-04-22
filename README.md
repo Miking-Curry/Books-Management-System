@@ -17,7 +17,7 @@
 
 ## 定制配置
 
-请参阅 [Vite 配置参考](https://vite.dev/config/)。
+请参阅 [Vite 配置参考](https://vite.dev/config/)666。
 
 ## 项目设置
 
