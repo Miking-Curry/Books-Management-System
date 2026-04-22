@@ -29,7 +29,7 @@
         <span class="title">图书列表</span>
         <el-button type="primary" size="small" icon="el-icon-plus" @click="handleAdd">新增</el-button>
       </div>
-      <el-table :data="tableData" border stripe style="width: 100%" v-if="!isMobile">
+      <el-table :data="filteredBooks" border stripe style="width: 100%" v-if="!isMobile" class="hover-table" v-loading="loading">
         <el-table-column prop="id" label="编号" width="60" align="center"></el-table-column>
         <el-table-column prop="cover" label="封面" width="60" align="center">
           <template slot-scope="scope">
@@ -46,7 +46,7 @@
           </template>
         </el-table-column>
         <el-table-column prop="price" label="价格" width="80" align="center">
-          <template slot-scope="scope">¥{{ scope.row.price }}</template>
+          <template slot-scope="scope">{{ formatPrice(scope.row.price) }}</template>
         </el-table-column>
         <el-table-column label="操作" width="160" align="center" fixed="right">
           <template slot-scope="scope">
@@ -56,7 +56,7 @@
         </el-table-column>
       </el-table>
       <div v-else class="mobile-list">
-        <div v-for="item in tableData" :key="item.id" class="mobile-item">
+        <div v-for="item in filteredBooks" :key="item.id" class="mobile-item">
           <el-image :src="item.cover" fit="cover" class="mobile-cover"></el-image>
           <div class="mobile-info">
             <div class="mobile-name">{{ item.name }}</div>
@@ -82,7 +82,7 @@
       </el-pagination>
     </el-card>
 
-    <el-dialog :title="dialogTitle" :visible.sync="dialogVisible" width="600px" :close-on-click-modal="false">
+    <el-dialog :title="dialogTitle" :visible.sync="dialogVisible" width="600px" :close-on-click-modal="false" @close="handleCloseDialog">
       <el-form :model="form" :rules="rules" ref="form" label-width="100px">
         <el-form-item label="书名" prop="name">
           <el-input v-model="form.name" placeholder="请输入书名"></el-input>
@@ -124,6 +124,11 @@
 </template>
 
 <script>
+import { mapGetters, mapActions } from 'vuex'
+import { businessRules, validateForm } from '@/utils/validators'
+import { formatMoney } from '@/utils/formatters'
+import { debounce } from '@/utils/helpers'
+
 export default {
   name: 'BookManage',
   data() {
@@ -133,17 +138,10 @@ export default {
         isbn: '',
         category: ''
       },
-      tableData: [
-        { id: 1, name: '红楼梦', author: '曹雪芹', isbn: '978-7-5329-5501-9', category: '文学', stock: 5, price: 68.00, cover: 'https://img9.doubanio.com/view/subject/l/public/s29948730.jpg', description: '中国古典四大名著之一' },
-        { id: 2, name: '三体', author: '刘慈欣', isbn: '978-7-5362-4590-1', category: '科技', stock: 8, price: 38.00, cover: 'https://img3.doubanio.com/view/subject/l/public/s26639742.jpg', description: '科幻小说' },
-        { id: 3, name: '人类简史', author: '尤瓦尔·赫拉利', isbn: '978-7-5322-8089-1', category: '历史', stock: 3, price: 68.00, cover: 'https://img3.doubanio.com/view/subject/l/public/s27215081.jpg', description: '从动物到上帝' },
-        { id: 4, name: '活着', author: '余华', isbn: '978-7-5322-5512-9', category: '文学', stock: 0, price: 28.00, cover: 'https://img2.doubanio.com/view/subject/l/public/s23812232.jpg', description: '讲述农民福贵的一生' },
-        { id: 5, name: '万历十五年', author: '黄仁宇', isbn: '978-7-5322-1527-8', category: '历史', stock: 4, price: 42.00, cover: 'https://img1.doubanio.com/view/subject/l/public/s10440402.jpg', description: '明代历史的横切面' }
-      ],
       pagination: {
         current: 1,
         size: 10,
-        total: 5
+        total: 0
       },
       dialogVisible: false,
       dialogTitle: '',
@@ -158,54 +156,231 @@ export default {
         cover: '',
         description: ''
       },
-      rules: {
-        name: [{ required: true, message: '请输入书名', trigger: 'blur' }],
-        author: [{ required: true, message: '请输入作者', trigger: 'blur' }],
-        isbn: [{ required: true, message: '请输入ISBN', trigger: 'blur' }],
-        category: [{ required: true, message: '请选择分类', trigger: 'change' }]
-      }
+      rules: businessRules.book,
+      loading: false,
+      isMobile: false
     }
   },
   computed: {
-    isMobile() {
-      return window.innerWidth < 768
+    ...mapGetters('books', [
+      'allBooks',
+      'isLoading',
+      'getError'
+    ]),
+    // 过滤后的图书列表
+    filteredBooks() {
+      let books = this.allBooks
+
+      // 按搜索条件过滤
+      if (this.searchForm.name) {
+        books = books.filter(book =>
+          book.name.toLowerCase().includes(this.searchForm.name.toLowerCase())
+        )
+      }
+      if (this.searchForm.isbn) {
+        books = books.filter(book =>
+          book.isbn.toLowerCase().includes(this.searchForm.isbn.toLowerCase())
+        )
+      }
+      if (this.searchForm.category) {
+        books = books.filter(book => book.category === this.searchForm.category)
+      }
+
+      // 分页
+      const start = (this.pagination.current - 1) * this.pagination.size
+      const end = start + this.pagination.size
+      this.pagination.total = books.length
+
+      return books.slice(start, end)
     }
   },
+  created() {
+    this.checkMobile()
+    window.addEventListener('resize', this.handleResize)
+    // 使用防抖的搜索函数
+    this.debouncedSearch = debounce(this.handleSearch, 300)
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.handleResize)
+  },
   methods: {
-    handleSearch() {
-      console.log('搜索', this.searchForm)
+    ...mapActions('books', [
+      'addBook',
+      'updateBook',
+      'deleteBook'
+    ]),
+
+    // 检查是否为移动设备
+    checkMobile() {
+      this.isMobile = window.innerWidth < 768
     },
+
+    // 处理窗口大小变化
+    handleResize() {
+      this.checkMobile()
+    },
+
+    // 格式化价格
+    formatPrice(price) {
+      return formatMoney(price)
+    },
+
+    // 搜索图书
+    handleSearch() {
+      this.pagination.current = 1
+      // filteredBooks 会自动根据 searchForm 更新
+    },
+
+    // 重置搜索
     handleReset() {
       this.searchForm = { name: '', isbn: '', category: '' }
+      this.pagination.current = 1
     },
+
+    // 新增图书
     handleAdd() {
-      this.form = { id: null, name: '', author: '', isbn: '', category: '', stock: 0, price: 0, cover: '', description: '' }
+      this.form = {
+        id: null,
+        name: '',
+        author: '',
+        isbn: '',
+        category: '',
+        stock: 0,
+        price: 0,
+        cover: '',
+        description: ''
+      }
       this.dialogTitle = '新增图书'
       this.dialogVisible = true
+      // 重置表单验证
+      this.$nextTick(() => {
+        if (this.$refs.form) {
+          this.$refs.form.clearValidate()
+        }
+      })
     },
+
+    // 编辑图书
     handleEdit(row) {
       this.form = { ...row }
       this.dialogTitle = '编辑图书'
       this.dialogVisible = true
     },
-    handleDelete(row) {
-      this.$confirm('确认删除该图书?', '提示', { type: 'warning' }).then(() => {
-        this.$message.success('删除成功')
-      })
-    },
-    handleSubmit() {
-      this.$refs.form.validate(valid => {
-        if (valid) {
-          this.$message.success('保存成功')
-          this.dialogVisible = false
+
+    // 删除图书
+    async handleDelete(row) {
+      try {
+        await this.$confirm('确认删除该图书吗？删除后将无法恢复。', '删除确认', {
+          confirmButtonText: '确定',
+          cancelButtonText: '取消',
+          type: 'warning'
+        })
+
+        this.loading = true
+        const success = await this.deleteBook(row.id)
+
+        if (success) {
+          this.$message({
+            type: 'success',
+            message: '删除成功',
+            duration: 2000
+          })
+        } else {
+          this.$message({
+            type: 'error',
+            message: '删除失败',
+            duration: 2000
+          })
         }
-      })
+      } catch (error) {
+        if (error !== 'cancel') {
+          this.$message({
+            type: 'error',
+            message: '删除失败：' + error.message,
+            duration: 2000
+          })
+        }
+      } finally {
+        this.loading = false
+      }
     },
+
+    // 提交表单
+    async handleSubmit() {
+      try {
+        await validateForm(this.$refs.form)
+        this.loading = true
+
+        let success
+        if (this.form.id) {
+          // 更新图书
+          success = await this.updateBook(this.form)
+        } else {
+          // 新增图书
+          success = await this.addBook(this.form)
+        }
+
+        if (success) {
+          this.$message({
+            type: 'success',
+            message: this.form.id ? '更新成功' : '添加成功',
+            duration: 2000
+          })
+          this.dialogVisible = false
+        } else {
+          this.$message({
+            type: 'error',
+            message: this.form.id ? '更新失败' : '添加失败',
+            duration: 2000
+          })
+        }
+      } catch (error) {
+        if (error.message !== '表单验证失败') {
+          this.$message({
+            type: 'error',
+            message: '操作失败：' + error.message,
+            duration: 2000
+          })
+        }
+      } finally {
+        this.loading = false
+      }
+    },
+
+    // 分页大小变化
     handleSizeChange(val) {
       this.pagination.size = val
+      this.pagination.current = 1
     },
+
+    // 当前页变化
     handleCurrentChange(val) {
       this.pagination.current = val
+    },
+
+    // 关闭对话框
+    handleCloseDialog() {
+      this.dialogVisible = false
+      this.form = {
+        id: null,
+        name: '',
+        author: '',
+        isbn: '',
+        category: '',
+        stock: 0,
+        price: 0,
+        cover: '',
+        description: ''
+      }
+    }
+  },
+  watch: {
+    // 监听搜索表单变化，自动搜索
+    searchForm: {
+      handler() {
+        this.debouncedSearch()
+      },
+      deep: true
     }
   }
 }
@@ -222,6 +397,12 @@ export default {
 .table-card {
   width: 100%;
   box-sizing: border-box;
+  transition: var(--transform-shadow);
+}
+
+.search-card:hover,
+.table-card:hover {
+  box-shadow: var(--shadow-md);
 }
 
 .search-form {
@@ -272,49 +453,118 @@ export default {
   .mobile-list {
     display: block;
   }
-  
+
   .mobile-item {
     display: flex;
     align-items: center;
     padding: 12px;
     border-bottom: 1px solid #eee;
+    transition: var(--transition-background);
+    animation: fadeInUp 0.3s ease;
   }
-  
+
+  .mobile-item:hover {
+    background-color: var(--color-background-light);
+  }
+
   .mobile-cover {
     width: 50px;
     height: 70px;
     border-radius: 4px;
     margin-right: 12px;
     flex-shrink: 0;
+    transition: var(--transition-transform);
   }
-  
+
+  .mobile-item:hover .mobile-cover {
+    transform: scale(1.05);
+  }
+
   .mobile-info {
     flex: 1;
     min-width: 0;
   }
-  
+
   .mobile-name {
     font-size: 15px;
     font-weight: 600;
     color: #303133;
     margin-bottom: 4px;
+    transition: var(--transition-color);
   }
-  
+
+  .mobile-item:hover .mobile-name {
+    color: var(--brand-primary);
+  }
+
   .mobile-detail {
     font-size: 13px;
     color: #909399;
     margin-bottom: 4px;
   }
-  
+
   .mobile-stock {
     font-size: 13px;
     color: #606266;
   }
-  
+
   .mobile-actions {
     display: flex;
     gap: 8px;
     flex-shrink: 0;
   }
+}
+
+/* 表格行动画 */
+.hover-table .el-table__row {
+  transition: var(--transition-background);
+  animation: fadeIn 0.3s ease;
+}
+
+.hover-table .el-table__row:hover {
+  background-color: var(--color-background-light) !important;
+}
+
+/* 图片悬停效果 */
+.el-image {
+  transition: var(--transition-transform);
+  border-radius: var(--border-radius-sm);
+  overflow: hidden;
+}
+
+.el-image:hover {
+  transform: scale(1.1);
+}
+
+/* 按钮悬停效果 */
+.el-button {
+  transition: var(--transition-base);
+}
+
+.el-button:hover {
+  transform: translateY(-1px);
+}
+
+.el-button:active {
+  transform: translateY(0);
+}
+
+/* 对话框动画 */
+.el-dialog {
+  animation: scaleIn 0.3s ease;
+}
+
+/* 表单输入框动画 */
+.el-input__inner,
+.el-textarea__inner,
+.el-select .el-input__inner {
+  transition: var(--transition-base);
+}
+
+.el-input__inner:focus,
+.el-textarea__inner:focus,
+.el-select .el-input__inner:focus {
+  border-color: var(--brand-primary);
+  box-shadow: 0 0 0 2px rgba(64, 158, 255, 0.1);
 }
 </style>

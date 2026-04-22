@@ -1,6 +1,13 @@
 <template>
   <el-container class="layout-container">
-    <el-aside width="200px" class="sidebar">
+    <!-- 移动端遮罩层 -->
+    <div
+      class="sidebar-overlay"
+      :class="{ active: mobileMenuOpen }"
+      @click="mobileMenuOpen = false"
+    ></div>
+
+    <el-aside width="200px" class="sidebar" :class="{ 'mobile-open': mobileMenuOpen }">
       <div class="logo">
         <i class="el-icon-reading"></i>
         <span>图书管理系统</span>
@@ -8,9 +15,6 @@
       <el-menu
         :default-active="$route.path"
         class="el-menu-vertical"
-        background-color="#1a2332"
-        text-color="#b8c7ce"
-        active-text-color="#409eff"
         router
       >
         <el-menu-item index="/books">
@@ -34,19 +38,50 @@
     <el-container class="main-container">
       <el-header class="header">
         <div class="header-left">
+          <!-- 移动端菜单按钮 -->
+          <el-button
+            class="mobile-menu-btn"
+            icon="el-icon-s-fold"
+            @click="mobileMenuOpen = !mobileMenuOpen"
+            v-if="isMobile"
+          ></el-button>
           <span class="page-title">{{ pageTitle }}</span>
         </div>
         <div class="header-right">
+          <!-- 通知图标 -->
+          <div class="notification-icon">
+            <i class="el-icon-bell"></i>
+            <span class="notification-badge"></span>
+          </div>
+          <!-- 设置图标 -->
+          <div class="settings-icon">
+            <i class="el-icon-setting"></i>
+          </div>
+          <!-- 用户信息 -->
           <el-dropdown>
             <span class="user-info">
-              <i class="el-icon-user-solid"></i>
+              <div class="user-avatar">管</div>
               <span>管理员</span>
+              <i class="el-icon-arrow-down"></i>
             </span>
+            <el-dropdown-menu slot="dropdown">
+              <el-dropdown-item>
+                <i class="el-icon-user"></i> 个人中心
+              </el-dropdown-item>
+              <el-dropdown-item>
+                <i class="el-icon-setting"></i> 系统设置
+              </el-dropdown-item>
+              <el-dropdown-item divided>
+                <i class="el-icon-switch-button"></i> 退出登录
+              </el-dropdown-item>
+            </el-dropdown-menu>
           </el-dropdown>
         </div>
       </el-header>
       <el-main class="main-content">
-        <router-view />
+        <transition name="page" mode="out-in">
+          <router-view :key="$route.path" />
+        </transition>
       </el-main>
     </el-container>
   </el-container>
@@ -55,6 +90,12 @@
 <script>
 export default {
   name: 'Layout',
+  data() {
+    return {
+      mobileMenuOpen: false,
+      isMobile: false
+    }
+  },
   computed: {
     pageTitle() {
       const titles = {
@@ -65,149 +106,36 @@ export default {
       }
       return titles[this.$route.path] || '图书管理系统'
     }
+  },
+  mounted() {
+    this.checkMobile()
+    window.addEventListener('resize', this.checkMobile)
+  },
+  beforeDestroy() {
+    window.removeEventListener('resize', this.checkMobile)
+  },
+  methods: {
+    checkMobile() {
+      this.isMobile = window.innerWidth < 768
+      if (!this.isMobile) {
+        this.mobileMenuOpen = false
+      }
+    }
   }
 }
 </script>
 
 <style scoped>
-.layout-container {
-  height: 100vh;
-  width: 100%;
-  display: flex;
-  overflow: hidden;
+/* 移动端菜单按钮 */
+.mobile-menu-btn {
+  display: none;
+  margin-right: var(--spacing-sm);
 }
 
-.sidebar {
-  width: 200px !important;
-  background: linear-gradient(180deg, #1a2332 0%, #2c3e50 100%);
-  box-shadow: 2px 0 8px rgba(0, 0, 0, 0.15);
-  flex-shrink: 0;
-}
-
-.main-container {
-  flex: 1;
-  display: flex;
-  flex-direction: column;
-  width: 100%;
-  min-width: 0;
-  max-width: none;
-}
-
-/* 覆盖 Element UI 的默认样式 */
-.el-container {
-  width: 100%;
-}
-
-.el-main {
-  width: 100%;
-  max-width: none;
-}
-
-.logo {
-  height: 50px;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  color: #fff;
-  font-size: 16px;
-  font-weight: 600;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
-  white-space: nowrap;
-}
-
-.logo i {
-  font-size: 24px;
-  margin-right: 10px;
-  color: #409eff;
-}
-
-.el-menu-vertical {
-  border-right: none;
-}
-
-.el-menu-item {
-  height: 56px;
-  line-height: 56px;
-}
-
-.el-menu-item:hover {
-  background: rgba(64, 158, 255, 0.2) !important;
-}
-
-.el-menu-item.is-active {
-  background: linear-gradient(90deg, #409eff 0%, #66b1ff 100%) !important;
-  color: #fff !important;
-  position: relative;
-}
-
-.el-menu-item.is-active::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0;
-  height: 100%;
-  width: 4px;
-  background: #fff;
-  border-radius: 0 2px 2px 0;
-}
-
-.header {
-  height: 50px !important;
-  background: #fff;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  padding: 0 20px;
-}
-
-.header-left {
-  display: flex;
-  align-items: center;
-}
-
-.page-title {
-  font-size: 16px;
-  font-weight: 600;
-  color: #303133;
-}
-
-.header-right {
-  display: flex;
-  align-items: center;
-  flex-shrink: 0;
-}
-
-.user-info {
-  display: flex;
-  align-items: center;
-  cursor: pointer;
-  padding: 8px 16px;
-  border-radius: 20px;
-  transition: background 0.3s;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
-  color: #fff;
-  font-size: 14px;
-  font-weight: 500;
-}
-
-.user-info:hover {
-  background: linear-gradient(135deg, #5a6fd6 0%, #6a4190 100%);
-  transform: scale(1.02);
-}
-
-.user-info i {
-  font-size: 18px;
-  color: #fff;
-  margin-right: 8px;
-}
-
-.main-content {
-  background: #f0f2f5;
-  padding: 16px;
-  height: calc(100vh - 50px);
-  overflow-y: auto;
-  width: 100%;
-  box-sizing: border-box;
+/* 响应式设计 */
+@media (max-width: 768px) {
+  .mobile-menu-btn {
+    display: inline-flex;
+  }
 }
 </style>
