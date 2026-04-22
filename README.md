@@ -10,10 +10,10 @@
 
 - **基于 Chromium 的浏览器**（Chrome、Edge、Brave 等）：
   - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [在 Chrome 开发者工具中开启自定义对象格式化器 (Custom Object Formatter)](http://bit.ly/object-formatters)
+  - [在 Chrome 开发者工具中开启自定义对象格式化器 (Custom Object Formatter)。](http://bit.ly/object-formatters)
 - **Firefox**:
   - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [在 Firefox 开发者工具中开启自定义对象格式化器 (Custom Object Formatter)](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
+  - [在 Firefox 开发者工具中开启自定义对象格式化器 (Custom Object Formatter)。](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
 
 ## 定制配置
 
